@@ -79,7 +79,7 @@ def send_email(data):
     log_message(f"Sending email to {data['to']} with subject '{data['subject']}'")
     try:
         message = Mail(
-            from_email='mail.jorndesmet@gmail.com',
+            from_email='no.reply.expomail@gmail.com',
             to_emails=data['to'],
             subject=data['subject'],
             html_content=data['htmlcontent']
