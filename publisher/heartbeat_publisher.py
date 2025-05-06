@@ -67,3 +67,8 @@ def send_heartbeat_periodically(service_name, queue_name="controlroom.heartbeat.
         time.sleep(interval)
 
     connection.close()
+
+
+# Main function to run the heartbeat publisher
+if __name__ == "__main__":
+    send_heartbeat_periodically("MailingService")
