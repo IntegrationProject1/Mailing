@@ -15,6 +15,7 @@ RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST')
 RABBITMQ_PORT = int(os.environ.get('RABBITMQ_PORT'))
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD')
+TEMPLATE_ID = os.environ.get('TEMPLATE_ID')
 QUEUE_NAME = 'mail_queue'
 
 # XSD schema definiëren
@@ -79,10 +80,13 @@ def send_email(data):
     log_message(f"Sending email to {data['to']} with subject '{data['subject']}'")
     try:
         message = Mail(
-            from_email='no.reply.expomail@gmail.com',
+            from_email= SENDGRID_API_KEY,
             to_emails=data['to'],
-            subject=data['subject'],
-            html_content=data['htmlcontent']
+            template_id= TEMPLATE_ID,
+            dynamic_template_data={
+                'subject': data['subject'],
+                'body': data[''] # add extra fields here if needed
+            }
         )
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
