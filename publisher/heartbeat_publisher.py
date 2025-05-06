@@ -28,10 +28,10 @@ def validate_heartbeat_xml(xml_str, xsd_path=None):
         return False, str(e)
     except Exception as e:
         return False, f"Validation error: {e}"
-    
+
 # Send heartbeat XML to RabbitMQ  
-def send_heartbeat_periodically(service_name, queue_name="controlroom.heartbeat.ping", interval=10):
-    time.sleep(10)  # wacht op RabbitMQ
+def send_heartbeat_periodically(service_name, queue_name="controlroom.heartbeat.ping", interval=1):
+    time.sleep(10)  # Wait for RabbitMQ to be ready
 
     credentials = pika.PlainCredentials(
         os.getenv("RABBITMQ_USER", "guest"),
@@ -45,30 +45,33 @@ def send_heartbeat_periodically(service_name, queue_name="controlroom.heartbeat.
 
     connection = pika.BlockingConnection(parameters)
     channel = connection.channel()
-    channel.exchange_declare(exchange="heartbeat", exchange_type="direct", durable=True)
+    
+    exchange_name = "heartbeat_monitoring"
+    
+    channel.exchange_declare(exchange=exchange_name, exchange_type="direct", durable=True)
     channel.queue_declare(queue=queue_name, durable=True)
-    channel.queue_bind(exchange="heartbeat", queue=queue_name, routing_key=queue_name)
+    channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=queue_name)
 
     while True:
         heartbeat_xml = generate_heartbeat_xml(service_name)
         valid, error = validate_heartbeat_xml(heartbeat_xml)
 
         if not valid:
-            print(f"Ongeldige XML: {error}")
+            print(f"Invalid XML: {error}")
         else:
             channel.basic_publish(
-                exchange="heartbeat",
+                exchange=exchange_name,
                 routing_key=queue_name,
                 body=heartbeat_xml,
                 properties=pika.BasicProperties(delivery_mode=2)
             )
-            print(f"Heartbeat verzonden: {heartbeat_xml}")
+            print(f"Heartbeat sent: {heartbeat_xml}")
 
         time.sleep(interval)
 
     connection.close()
 
-
 # Main function to run the heartbeat publisher
 if __name__ == "__main__":
-    send_heartbeat_periodically("MailingService")
+    service_name = os.getenv("SERVICE_NAME", "MailingService")
+    send_heartbeat_periodically(service_name)
