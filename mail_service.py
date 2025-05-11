@@ -17,18 +17,31 @@ RABBITMQ_USER = os.environ.get('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD')
 QUEUE_NAME = 'mail_queue'
 
+
 # XSD schema definiëren
 XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
   <xs:element name="emailMessage">
     <xs:complexType>
       <xs:sequence>
-        <xs:element name="to" type="xs:string"/>
-        <xs:element name="subject" type="xs:string"/>
-        <xs:element name="htmlcontent" type="xs:string"/>
+        <xs:element name="to" type="xs:string" />
+        <xs:element name="subject" type="xs:string" />
+        <xs:element name="template_id" type="xs:string" minOccurs="0" />
+        <xs:element name="htmlcontent" type="xs:string" minOccurs="0" />
+        <xs:element name="dynamic_template_data" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <!-- Voeg hier alle verwachte velden toe voor je template -->
+              <xs:element name="first_name" type="xs:string" minOccurs="0" />
+              <!-- Voeg extra dynamic data hier toe indien nodig -->
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
+
 </xs:schema>
 '''
 
@@ -67,29 +80,46 @@ def xml_to_dict(xml_doc):
         data = {
             'to': root.find('to').text,
             'subject': root.find('subject').text,
-            'htmlcontent': root.find('htmlcontent').text 
+            'template_id': root.find('template_id').text,
+            'dynamic_template_data': {}
         }
-        log_message(f"XML converted successfully. Recipient: {data['to']}, Subject: {data['subject']}")
+
+        dynamic_data = root.find('dynamic_template_data')
+        if dynamic_data is not None:
+            for child in dynamic_data:
+                data['dynamic_template_data'][child.tag] = child.text
+
+        log_message(f"XML converted. To: {data['to']}, Subject: {data['subject']}, Template: {data['template_id']}")
         return data
     except Exception as e:
         log_message(f"Error converting XML to dict: {str(e)}")
         raise
 
+
 def send_email(data):
     log_message(f"Sending email to {data['to']} with subject '{data['subject']}'")
+
     try:
         message = Mail(
-            from_email='no.reply.expomail@gmail.com',
-            to_emails=data['to'],
-            subject=data['subject'],
-            html_content=data['htmlcontent']
+            from_email='no.reply.expomail@gmail.com', # email dat goedgekeurd is door SendGrid om te verzenden
+            to_emails=data['to']
         )
+
+        if 'template_id' in data and data['template_id']:
+            message.template_id = data['template_id']
+            message.dynamic_template_data = data.get('dynamic_template_data', {}) # data 
+        else:
+            message.subject = data['subject']
+            message.html_content = data['htmlcontent']
+
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
-        log_message(f"Email sent successfully. Status code: {response.status_code}")
+        log_message(f"Email sent. Status code: {response.status_code}")
+
     except Exception as e:
-        log_message(f"Error sending email: {str(e)}")
+        log_message(f"Error sending templated email: {str(e)}")
         raise
+
 
 def callback(ch, method, properties, body):
     # Controleer of het bericht JSON of XML is
@@ -98,7 +128,7 @@ def callback(ch, method, properties, body):
     message_text = body.decode('utf-8')
     log_message(f"Received message #{message_id} with content-type: {content_type}")
     
-    # Check if content looks like XML regardless of content-type
+    # kijken of het een XML bericht is
     is_xml = message_text.strip().startswith('<?xml') or '<emailMessage>' in message_text
     
     try:
@@ -212,21 +242,12 @@ if __name__ == "__main__":
 
 
 
-# <?xml version="1.0" encoding="UTF-8"?>
-# <emailMessage>
-#     <to>test@example.com</to>
-#     <subject>Test Email from Mail Service</subject>
-#     <htmlcontent>
-#         <![CDATA[
-#         <html>
-#             <body>
-#                 <h1>This is a test email</h1>
-#                 <p>Hello! This is a test message sent to verify that the mail service is working correctly.</p>
-#                 <p>The time of sending was: 2025-05-01 12:00:00</p>
-#                 <hr/>
-#                 <p>If you received this email, the mail service is functioning properly.</p>
-#             </body>
-#         </html>
-#         ]]>
-#     </htmlcontent>
-# </emailMessage>
+#<?xml version="1.0" encoding="UTF-8"?>
+#<emailMessage>
+#  <to>milanvt18@gmail.com</to>
+#  <subject>Welkom bij Expomail!</subject>
+#  <template_id>d-03672caae1a84395b015507b56c57c55</template_id>
+#  <dynamic_template_data>
+#    <first_name>Jan</first_name>
+#  </dynamic_template_data>
+#</emailMessage>
