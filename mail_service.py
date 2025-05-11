@@ -25,8 +25,12 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
     <xs:complexType>
       <xs:sequence>
         <xs:element name="to" type="xs:string"/>
+        <xs:element name="from" type="xs:string"/>
         <xs:element name="subject" type="xs:string"/>
-        <xs:element name="htmlcontent" type="xs:string"/>
+        <xs:element name="title" type="xs:string"/>
+        <xs:element name="opener" type="xs:string"/>
+        <xs:element name="body" type="xs:string"/>
+        <xs:element name="footer" type="xs:string"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -61,14 +65,17 @@ def validate_xml(xml_string):
         return False, error_msg
 
 def xml_to_dict(xml_doc):
-    """Converteert XML naar dictionary format voor de email service"""
     log_message("Converting XML to dictionary")
     root = xml_doc.getroot()
     try:
         data = {
             'to': root.find('to').text,
+            'from': root.find('from').text,
             'subject': root.find('subject').text,
-            'htmlcontent': root.find('htmlcontent').text 
+            'title': root.find('title').text,
+            'opener': root.find('opener').text,
+            'body': root.find('body').text,
+            'footer': root.find('footer').text,
         }
         log_message(f"XML converted successfully. Recipient: {data['to']}, Subject: {data['subject']}")
         return data
@@ -80,14 +87,20 @@ def send_email(data):
     log_message(f"Sending email to {data['to']} with subject '{data['subject']}'")
     try:
         message = Mail(
-            from_email= SENDGRID_API_KEY,
+            from_email= data['from'],
             to_emails=data['to'],
-            template_id= TEMPLATE_ID,
-            dynamic_template_data={
-                'subject': data['subject'],
-                'body': data[''] # add extra fields here if needed
-            }
         )
+        # Set SendGrid template ID
+        message.template_id = TEMPLATE_ID
+
+        # Set dynamic template data
+        message.dynamic_template_data={
+                'subject': data['subject'],
+                'title': data['title'],
+                'opener': data['opener'],
+                'body': data['body'],
+                'footer': data['footer'],
+                }
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
         log_message(f"Email sent successfully. Status code: {response.status_code}")
@@ -211,26 +224,13 @@ if __name__ == "__main__":
     
     log_message("Mail service application ended")
 
-
-
-
-
-
-# <?xml version="1.0" encoding="UTF-8"?>
-# <emailMessage>
-#     <to>test@example.com</to>
-#     <subject>Test Email from Mail Service</subject>
-#     <htmlcontent>
-#         <![CDATA[
-#         <html>
-#             <body>
-#                 <h1>This is a test email</h1>
-#                 <p>Hello! This is a test message sent to verify that the mail service is working correctly.</p>
-#                 <p>The time of sending was: 2025-05-01 12:00:00</p>
-#                 <hr/>
-#                 <p>If you received this email, the mail service is functioning properly.</p>
-#             </body>
-#         </html>
-#         ]]>
-#     </htmlcontent>
-# </emailMessage>
+#<?xml version="1.0" encoding="UTF-8"?>
+#<emailMessage>
+#  <to>reply.expomail@gmail.com</to>
+#  <from>no.reply.expomail@gmail.com</from>
+#  <subject>Test Subject</subject>
+#  <title>Welcome to Our Service</title>
+#  <opener>Hi there,</opener>
+#  <body>Thank you for signing up for our service. We're excited to have you!</body>
+#  <footer>Best regards, The Team</footer>
+#</emailMessage>
