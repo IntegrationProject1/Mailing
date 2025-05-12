@@ -15,16 +15,21 @@ RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST')
 RABBITMQ_PORT = int(os.environ.get('RABBITMQ_PORT'))
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD')
-TEMPLATE_ID = os.environ.get('TEMPLATE_ID')
+SERVICE_TEMPLATES = {
+    'facturatie':  os.environ['FACTURATIE_TEMPLATE_ID'],
+    'controlroom': os.environ['CONTROLROOM_TEMPLATE_ID'],
+    'frontend':    os.environ['FRONTEND_TEMPLATE_ID'],
+}
 QUEUE_NAME = 'mail_queue'
 
 # XSD schema definiëren
 XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
   <xs:element name="emailMessage">
     <xs:complexType>
       <xs:sequence>
-        <xs:element name="to" type="xs:string"/>
+        <xs:element name="to"   type="xs:string"/>
         <xs:element name="from" type="xs:string"/>
         <xs:element name="subject" type="xs:string"/>
         <xs:element name="title" type="xs:string"/>
@@ -32,8 +37,11 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
         <xs:element name="body" type="xs:string"/>
         <xs:element name="footer" type="xs:string"/>
       </xs:sequence>
+      <!-- Nieuw attribuut: naam van de service -->
+      <xs:attribute name="service" type="xs:string" use="required"/>
     </xs:complexType>
   </xs:element>
+
 </xs:schema>
 '''
 
@@ -67,46 +75,63 @@ def validate_xml(xml_string):
 def xml_to_dict(xml_doc):
     log_message("Converting XML to dictionary")
     root = xml_doc.getroot()
+
+    
+    service = root.get('service')
+    if not service or service not in SERVICE_TEMPLATES: # kijken of de service in de dict zit
+        raise ValueError(f"Onbekende of ontbrekende service: {service!r}")
+    template_id = SERVICE_TEMPLATES[service]
+    
     try:
         data = {
-            'to': root.find('to').text,
-            'from': root.find('from').text,
-            'subject': root.find('subject').text,
-            'title': root.find('title').text,
-            'opener': root.find('opener').text,
-            'body': root.find('body').text,
-            'footer': root.find('footer').text,
+            'service': service,
+            'template_id': template_id,
+            'to':      root.findtext('to'),
+            'from':    root.findtext('from'),
+            'subject': root.findtext('subject'),
+            # dynamic template maken
+            'dynamic_template_data': {
+                'subject': root.findtext('subject'),
+                'title':  root.findtext('title'),
+                'opener': root.findtext('opener'),
+                'body':   root.findtext('body'),
+                'footer': root.findtext('footer'),
+            }
         }
-        log_message(f"XML converted successfully. Recipient: {data['to']}, Subject: {data['subject']}")
+        log_message(
+          f"XML converted successfully. Service: {service}, "
+          f"Recipient: {data['to']}, Subject: {data['subject']}, "
+          f"Template: {template_id}"
+        )
         return data
+
     except Exception as e:
         log_message(f"Error converting XML to dict: {str(e)}")
         raise
 
+
 def send_email(data):
-    log_message(f"Sending email to {data['to']} with subject '{data['subject']}'")
+    log_message(f"Sending email for service '{data['service']}' "
+                f"to {data['to']} with subject '{data['subject']}'")
     try:
         message = Mail(
-            from_email= data['from'],
-            to_emails=data['to'],
+            from_email  = data['from'],
+            to_emails   = data['to'],
         )
-        # Set SendGrid template ID
-        message.template_id = TEMPLATE_ID
 
-        # Set dynamic template data
-        message.dynamic_template_data={
-                'subject': data['subject'],
-                'title': data['title'],
-                'opener': data['opener'],
-                'body': data['body'],
-                'footer': data['footer'],
-                }
+        # juiste template id gebruiken
+        message.template_id = data['template_id']
+
+        message.dynamic_template_data = data['dynamic_template_data']
+
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
         log_message(f"Email sent successfully. Status code: {response.status_code}")
+
     except Exception as e:
         log_message(f"Error sending email: {str(e)}")
         raise
+
 
 def callback(ch, method, properties, body):
     # Controleer of het bericht JSON of XML is
@@ -224,13 +249,30 @@ if __name__ == "__main__":
     
     log_message("Mail service application ended")
 
-#<?xml version="1.0" encoding="UTF-8"?>
-#<emailMessage>
-#  <to>reply.expomail@gmail.com</to>
-#  <from>no.reply.expomail@gmail.com</from>
-#  <subject>Test Subject</subject>
-#  <title>Welcome to Our Service</title>
-#  <opener>Hi there,</opener>
-#  <body>Thank you for signing up for our service. We're excited to have you!</body>
-#  <footer>Best regards, The Team</footer>
-#</emailMessage>
+
+# test data om op de queue te zetten
+'''
+<?xml version="1.0" encoding="UTF-8"?>
+<emailMessage service="facturatie">
+  <to>milanvt18@gmail.com</to>
+  <from>no.reply.expomail@gmail.com</from>
+  <subject>Uw factuur is klaar</subject>
+  <title>Factuur #12345</title>
+  <opener>Beste Jan,</opener>
+  <body>Uw factuur van mei vindt u als bijlage.</body>
+  <footer>Met vriendelijke groet, Finance Dept.</footer>
+</emailMessage>
+'''
+
+'''
+<?xml version="1.0" encoding="UTF-8"?>
+<emailMessage service="frontend">
+  <to>milanvt18@gmail.com</to>
+  <from>no.reply.expomail@gmail.com</from>
+  <subject>qrcode Milan</subject>
+  <title></title>
+  <opener>Beste Milan,</opener>
+  <body>Hier kunt u uw qrcode vinden</body>
+  <footer>Met vriendelijke groet, Expo.</footer>
+</emailMessage>
+'''
