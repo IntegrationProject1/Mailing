@@ -15,6 +15,11 @@ RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST')
 RABBITMQ_PORT = int(os.environ.get('RABBITMQ_PORT'))
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD')
+SERVICE_TEMPLATES = {
+    'facturatie':  os.environ['FACTURATIE_TEMPLATE_ID'],
+    'controlroom': os.environ['CONTROLROOM_TEMPLATE_ID'],
+    'frontend':    os.environ['FRONTEND_TEMPLATE_ID'],
+}
 QUEUE_NAME = 'mail_queue'
 
 
@@ -25,20 +30,16 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
   <xs:element name="emailMessage">
     <xs:complexType>
       <xs:sequence>
-        <xs:element name="to" type="xs:string" />
-        <xs:element name="subject" type="xs:string" />
-        <xs:element name="template_id" type="xs:string" minOccurs="0" />
-        <xs:element name="htmlcontent" type="xs:string" minOccurs="0" />
-        <xs:element name="dynamic_template_data" minOccurs="0">
-          <xs:complexType>
-            <xs:sequence>
-              <!-- Voeg hier alle verwachte velden toe voor je template -->
-              <xs:element name="first_name" type="xs:string" minOccurs="0" />
-              <!-- Voeg extra dynamic data hier toe indien nodig -->
-            </xs:sequence>
-          </xs:complexType>
-        </xs:element>
+        <xs:element name="to"   type="xs:string"/>
+        <xs:element name="from" type="xs:string"/>
+        <xs:element name="subject" type="xs:string"/>
+        <xs:element name="title" type="xs:string"/>
+        <xs:element name="opener" type="xs:string"/>
+        <xs:element name="body" type="xs:string"/>
+        <xs:element name="footer" type="xs:string"/>
       </xs:sequence>
+      <!-- Nieuw attribuut: naam van de service -->
+      <xs:attribute name="service" type="xs:string" use="required"/>
     </xs:complexType>
   </xs:element>
 
@@ -73,48 +74,60 @@ def validate_xml(xml_string):
         return False, error_msg
 
 def xml_to_dict(xml_doc):
-    """Converteert XML naar dictionary format voor de email service"""
     log_message("Converting XML to dictionary")
     root = xml_doc.getroot()
+
+    
+    service = root.get('service')
+    if not service or service not in SERVICE_TEMPLATES: # kijken of de service in de dict zit
+        raise ValueError(f"Onbekende of ontbrekende service: {service!r}")
+    template_id = SERVICE_TEMPLATES[service]
+    
     try:
         data = {
-            'to': root.find('to').text,
-            'subject': root.find('subject').text,
-            'template_id': root.find('template_id').text,
-            'dynamic_template_data': {}
+            'service': service,
+            'template_id': template_id,
+            'to':      root.findtext('to'),
+            'from':    root.findtext('from'),
+            'subject': root.findtext('subject'),
+            # dynamic template maken
+            'dynamic_template_data': {
+                'subject': root.findtext('subject'),
+                'title':  root.findtext('title'),
+                'opener': root.findtext('opener'),
+                'body':   root.findtext('body'),
+                'footer': root.findtext('footer'),
+            }
         }
-
-        dynamic_data = root.find('dynamic_template_data')
-        if dynamic_data is not None:
-            for child in dynamic_data:
-                data['dynamic_template_data'][child.tag] = child.text
-
-        log_message(f"XML converted. To: {data['to']}, Subject: {data['subject']}, Template: {data['template_id']}")
+        log_message(
+          f"XML converted successfully. Service: {service}, "
+          f"Recipient: {data['to']}, Subject: {data['subject']}, "
+          f"Template: {template_id}"
+        )
         return data
+
     except Exception as e:
         log_message(f"Error converting XML to dict: {str(e)}")
         raise
 
 
 def send_email(data):
-    log_message(f"Sending email to {data['to']} with subject '{data['subject']}'")
-
+    log_message(f"Sending email for service '{data['service']}' "
+                f"to {data['to']} with subject '{data['subject']}'")
     try:
         message = Mail(
-            from_email='no.reply.expomail@gmail.com', # email dat goedgekeurd is door SendGrid om te verzenden
-            to_emails=data['to']
+            from_email  = data['from'],
+            to_emails   = data['to'],
         )
 
-        if 'template_id' in data and data['template_id']:
-            message.template_id = data['template_id']
-            message.dynamic_template_data = data.get('dynamic_template_data', {}) # data 
-        else:
-            message.subject = data['subject']
-            message.html_content = data['htmlcontent']
+        # juiste template id gebruiken
+        message.template_id = data['template_id']
+
+        message.dynamic_template_data = data['dynamic_template_data']
 
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
-        log_message(f"Email sent. Status code: {response.status_code}")
+        log_message(f"Email sent successfully. Status code: {response.status_code}")
 
     except Exception as e:
         log_message(f"Error sending templated email: {str(e)}")
@@ -238,16 +251,29 @@ if __name__ == "__main__":
     log_message("Mail service application ended")
 
 
+# test data om op de queue te zetten
+'''
+<?xml version="1.0" encoding="UTF-8"?>
+<emailMessage service="facturatie">
+  <to>milanvt18@gmail.com</to>
+  <from>no.reply.expomail@gmail.com</from>
+  <subject>Uw factuur is klaar</subject>
+  <title>Factuur #12345</title>
+  <opener>Beste Jan,</opener>
+  <body>Uw factuur van mei vindt u als bijlage.</body>
+  <footer>Met vriendelijke groet, Finance Dept.</footer>
+</emailMessage>
+'''
 
-
-
-
-#<?xml version="1.0" encoding="UTF-8"?>
-#<emailMessage>
-#  <to>milanvt18@gmail.com</to>
-#  <subject>Welkom bij Expomail!</subject>
-#  <template_id>d-03672caae1a84395b015507b56c57c55</template_id>
-#  <dynamic_template_data>
-#    <first_name>Jan</first_name>
-#  </dynamic_template_data>
-#</emailMessage>
+'''
+<?xml version="1.0" encoding="UTF-8"?>
+<emailMessage service="frontend">
+  <to>milanvt18@gmail.com</to>
+  <from>no.reply.expomail@gmail.com</from>
+  <subject>qrcode Milan</subject>
+  <title></title>
+  <opener>Beste Milan,</opener>
+  <body>Hier kunt u uw qrcode vinden</body>
+  <footer>Met vriendelijke groet, Expo.</footer>
+</emailMessage>
+'''
