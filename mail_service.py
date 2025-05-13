@@ -24,7 +24,6 @@ SERVICE_TEMPLATES = {
     'facturatie':  os.environ['FACTURATIE_TEMPLATE_ID'],
     'controlroom': os.environ['CONTROLROOM_TEMPLATE_ID'],
     'frontend':    os.environ['FRONTEND_TEMPLATE_ID'],
-    'qr-code':    os.environ['QR_CODE_TEMPLATE_ID'],
 }
 QUEUE_NAME = 'mail_queue'
 
@@ -134,8 +133,8 @@ def send_email(data):
         message.template_id = data['template_id']
         message.dynamic_template_data = data['dynamic_template_data']
 
-        # Only generate QR code if the service is 'qr-code'
-        if data['service'] == 'qr-code':
+        # Only generate QR code if the service is 'qrcode'
+        if data['service'] == 'qrcode':
             qr_content = data['dynamic_template_data']['body']
 
             # Generate QR code image in memory
