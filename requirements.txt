@@ -2,3 +2,5 @@ pika
 sendgrid
 lxml
 logging
+qrcode
+pillow
