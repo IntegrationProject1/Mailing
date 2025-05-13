@@ -1,32 +1,38 @@
-services: 
+version: '3.8'
+
+services:
   mail_service:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       - SENDGRID_API_KEY=${SENDGRID_API_KEY}
       - RABBITMQ_HOST=${RABBITMQ_HOST}
       - RABBITMQ_PORT=${RABBITMQ_PORT}
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - QRCODE_TEMPLATE_ID=${QRCODE_TEMPLATE_ID}
       - FACTURATIE_TEMPLATE_ID=${FACTURATIE_TEMPLATE_ID}
       - CONTROLROOM_TEMPLATE_ID=${CONTROLROOM_TEMPLATE_ID}
       - FRONTEND_TEMPLATE_ID=${FRONTEND_TEMPLATE_ID}
-      - QR_CODE_TEMPLATE_ID=${QR_CODE_TEMPLATE_ID}
+      - SERVICE_NAME=MailingService
     networks:
-      - project_network 
+      - project_network
 
   mailing_heartbeat:
     build:
-      context: ./publisher
-      dockerfile: Dockerfile  #Dockerfile specifiek voor heartbeat
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-u", "heartbeat_publisher.py"]
     environment:
       - RABBITMQ_HOST=${RABBITMQ_HOST}
       - RABBITMQ_PORT=${RABBITMQ_PORT}
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - SERVICE_NAME=MailingService
     networks:
       - project_network
-    restart: always  # Optioneel, handig bij crashes
-
+    restart: always
 
 networks:
   project_network:

@@ -20,10 +20,10 @@ RABBITMQ_PORT = int(os.environ.get('RABBITMQ_PORT'))
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD')
 SERVICE_TEMPLATES = {
+    'qrcode':     os.environ['QRCODE_TEMPLATE_ID'],
     'facturatie':  os.environ['FACTURATIE_TEMPLATE_ID'],
     'controlroom': os.environ['CONTROLROOM_TEMPLATE_ID'],
     'frontend':    os.environ['FRONTEND_TEMPLATE_ID'],
-    'qrcode':    os.environ['QR_CODE_TEMPLATE_ID'],
 }
 QUEUE_NAME = 'mail_queue'
 
@@ -223,19 +223,35 @@ class MailService:
                 params = pika.ConnectionParameters(
                     host=RABBITMQ_HOST,
                     port=RABBITMQ_PORT,
-
                     credentials=credentials,
                 )
-                
+
                 self.connection = pika.BlockingConnection(params)
                 self.channel = self.connection.channel()
-                
+
                 log_message("Connected to RabbitMQ successfully")
+
+                # Declare exchange
+                exchange_name = 'email'
+                self.channel.exchange_declare(exchange='email', exchange_type='topic', durable=True)
+                log_message(f"Exchange '{exchange_name}' declared")
+
+                # Declare queue
+                self.channel.queue_declare(queue=QUEUE_NAME, durable=True)
+                log_message(f"Queue '{QUEUE_NAME}' declared")
+
+                # Bind queue to exchange
+                routing_key = 'mail'
+                self.channel.queue_bind(exchange=exchange_name, queue=QUEUE_NAME, routing_key=routing_key)
+                log_message(f"Queue '{QUEUE_NAME}' bound to exchange '{exchange_name}' with routing key '{routing_key}'")
+
                 return True
-                
+
             except Exception as e:
-                log_message(f"Connection attempt {retry+1} failed: {str(e)}")        
+                log_message(f"Connection attempt {retry+1} failed: {str(e)}")
+                time.sleep(self.retry_interval)
         return False
+
         
     def run(self):
         """Main method to start the mail service"""
