@@ -6,6 +6,10 @@ from sendgrid.helpers.mail import Mail
 import xml.etree.ElementTree as ET
 from lxml import etree
 from io import StringIO, BytesIO
+import qrcode
+import base64
+from sendgrid.helpers.mail import Attachment, FileContent, FileName, FileType, Disposition, ContentId
+
 
 _logger = logging.getLogger(__name__)
 
@@ -20,6 +24,7 @@ SERVICE_TEMPLATES = {
     'facturatie':  os.environ['FACTURATIE_TEMPLATE_ID'],
     'controlroom': os.environ['CONTROLROOM_TEMPLATE_ID'],
     'frontend':    os.environ['FRONTEND_TEMPLATE_ID'],
+    'qr-code':    os.environ['QR_CODE_TEMPLATE_ID'],
 }
 QUEUE_NAME = 'mail_queue'
 
@@ -84,7 +89,7 @@ def xml_to_dict(xml_doc):
     template_id = SERVICE_TEMPLATES[service]
 
     # Velden die verplicht aanwezig moeten zijn
-    required_fields = ['to', 'from', 'subject', 'body']
+    required_fields = ['to', 'from', 'subject']
     for field in required_fields:
         value = root.findtext(field)
         if not value or not value.strip():
@@ -122,14 +127,32 @@ def send_email(data):
                 f"to {data['to']} with subject '{data['subject']}'")
     try:
         message = Mail(
-            from_email  = data['from'],
-            to_emails   = data['to'],
+            from_email=data['from'],
+            to_emails=data['to'],
         )
 
-        # juiste template id gebruiken
         message.template_id = data['template_id']
-
         message.dynamic_template_data = data['dynamic_template_data']
+
+        # Only generate QR code if the service is 'qr-code'
+        if data['service'] == 'qr-code':
+            qr_content = data['dynamic_template_data']['body']
+
+            # Generate QR code image in memory
+            qr = qrcode.make(qr_content)
+            buffered = BytesIO()
+            qr.save(buffered, format="PNG")
+            qr_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+            # Create embedded image attachment (CID = qrimage)
+            attachment = Attachment(
+                FileContent(qr_base64),
+                FileName("qrcode.png"),
+                FileType("image/png"),
+                Disposition("inline"),
+                ContentId("qrimage")
+            )
+            message.add_attachment(attachment)
 
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
@@ -138,6 +161,8 @@ def send_email(data):
     except Exception as e:
         log_message(f"Error sending templated email: {str(e)}")
         raise
+
+
 
 
 def callback(ch, method, properties, body):
@@ -290,7 +315,7 @@ if __name__ == "__main__":
 '''
 <?xml version="1.0" encoding="UTF-8"?>
 <emailMessage service="frontend">
-  <to>milanvt18@gmail.com</to>
+  <to>reply.expomail@gmail.com</to>
   <from>no.reply.expomail@gmail.com</from>
   <subject>qrcode Milan</subject>
   <title></title>
