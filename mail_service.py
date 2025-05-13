@@ -77,12 +77,18 @@ def xml_to_dict(xml_doc):
     log_message("Converting XML to dictionary")
     root = xml_doc.getroot()
 
-    
     service = root.get('service')
-    if not service or service not in SERVICE_TEMPLATES: # kijken of de service in de dict zit
+    if not service or service not in SERVICE_TEMPLATES:
         raise ValueError(f"Onbekende of ontbrekende service: {service!r}")
     template_id = SERVICE_TEMPLATES[service]
-    
+
+    # Velden die verplicht aanwezig moeten zijn
+    required_fields = ['to', 'from', 'subject', 'body']
+    for field in required_fields:
+        value = root.findtext(field)
+        if not value or not value.strip():
+            raise ValueError(f"Verplicht veld '{field}' is leeg of ontbreekt.")
+
     try:
         data = {
             'service': service,
@@ -90,7 +96,6 @@ def xml_to_dict(xml_doc):
             'to':      root.findtext('to'),
             'from':    root.findtext('from'),
             'subject': root.findtext('subject'),
-            # dynamic template maken
             'dynamic_template_data': {
                 'subject': root.findtext('subject'),
                 'title':  root.findtext('title'),
