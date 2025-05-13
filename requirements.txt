@@ -1,4 +1,3 @@
 pika
 sendgrid
 lxml
-logging
