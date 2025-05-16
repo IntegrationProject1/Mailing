@@ -3,3 +3,5 @@ sendgrid
 lxml
 qrcode
 pillow
+pytest
+pytest-mock

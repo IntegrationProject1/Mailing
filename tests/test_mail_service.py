@@ -1,0 +1,96 @@
+import pytest
+from unittest.mock import patch, MagicMock
+from mail_service import validate_xml, xml_to_dict, send_email, callback
+
+
+# Geldig XML bericht
+VALID_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+<emailMessage service="facturatie">
+  <to>test@example.com</to>
+  <from>from@example.com</from>
+  <subject>Test</subject>
+  <title>Hello</title>
+  <opener>Beste klant</opener>
+  <body>Inhoud</body>
+  <footer>Groet</footer>
+</emailMessage>'''
+
+INVALID_XML = '''<emailMessage><to></to></emailMessage>'''  # Onvolledig
+
+def test_validate_xml_valid():
+    valid, result = validate_xml(VALID_XML)
+    assert valid is True
+    assert result is not None
+
+def test_validate_xml_invalid():
+    valid, result = validate_xml(INVALID_XML)
+    assert not valid
+    assert "error" in result.lower()
+
+def test_xml_to_dict_valid():
+    valid, xml_doc = validate_xml(VALID_XML)
+    data = xml_to_dict(xml_doc)
+    assert data['to'] == 'test@example.com'
+    assert data['service'] == 'facturatie'
+    assert 'template_id' in data
+
+@patch("mail_service.SendGridAPIClient")
+def test_send_email_success(mock_sendgrid_client):
+    # Mock SG response
+    mock_client_instance = MagicMock()
+    mock_client_instance.send.return_value.status_code = 202
+    mock_sendgrid_client.return_value = mock_client_instance
+
+    data = {
+        'from': 'from@example.com',
+        'to': 'to@example.com',
+        'subject': 'Test Subject',
+        'service': 'facturatie',
+        'template_id': 'dummy_template',
+        'dynamic_template_data': {
+            'subject': 'Test Subject',
+            'title': 'Title',
+            'opener': 'Beste',
+            'body': 'Inhoud',
+            'footer': 'Groet'
+        }
+    }
+    send_email(data)
+    mock_client_instance.send.assert_called_once()
+
+
+@patch("mail_service.send_email")
+def test_callback_json_valid(mock_send_email):
+    # Fake RabbitMQ channel and method
+    mock_ch = MagicMock()
+    mock_method = MagicMock(delivery_tag=1)
+    mock_properties = MagicMock(content_type="application/json")
+    json_body = b'''{
+        "from": "from@example.com",
+        "to": "to@example.com",
+        "subject": "Test Subject",
+        "service": "facturatie",
+        "template_id": "dummy",
+        "dynamic_template_data": {
+            "subject": "Test",
+            "title": "Hi",
+            "opener": "Beste",
+            "body": "Test",
+            "footer": "Groet"
+        }
+    }'''
+
+    callback(mock_ch, mock_method, mock_properties, json_body)
+    mock_send_email.assert_called_once()
+    mock_ch.basic_ack.assert_called_once_with(delivery_tag=1)
+
+
+@patch("mail_service.send_email")
+def test_callback_xml_valid(mock_send_email):
+    mock_ch = MagicMock()
+    mock_method = MagicMock(delivery_tag=1)
+    mock_props = MagicMock(content_type="application/xml")
+
+    callback(mock_ch, mock_method, mock_props, VALID_XML.encode("utf-8"))
+    mock_send_email.assert_called_once()
+    mock_ch.basic_ack.assert_called_once_with(delivery_tag=1)
