@@ -34,6 +34,25 @@ services:
       - project_network
     restart: always
 
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: pytest tests/
+    environment:
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - QRCODE_TEMPLATE_ID=${QRCODE_TEMPLATE_ID}
+      - FACTURATIE_TEMPLATE_ID=${FACTURATIE_TEMPLATE_ID}
+      - CONTROLROOM_TEMPLATE_ID=${CONTROLROOM_TEMPLATE_ID}
+      - FRONTEND_TEMPLATE_ID=${FRONTEND_TEMPLATE_ID}
+      - SERVICE_NAME=MailingService
+    networks:
+      - project_network
+
 networks:
   project_network:
     driver: bridge
