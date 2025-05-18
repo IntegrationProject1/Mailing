@@ -8,15 +8,40 @@ on:
 
 jobs:
   test:
-    name: Run Tests via Docker Compose
+    name: RabbitMQ + SendGrid Integration Test
     runs-on: ubuntu-latest
 
+    env:
+      RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
+      RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT }}
+      RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+      RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+      QRCODE_TEMPLATE_ID: ${{ secrets.QRCODE_TEMPLATE_ID }}
+      FACTURATIE_TEMPLATE_ID: ${{ secrets.FACTURATIE_TEMPLATE_ID }}
+      CONTROLROOM_TEMPLATE_ID: ${{ secrets.CONTROLROOM_TEMPLATE_ID }}
+      FRONTEND_TEMPLATE_ID: ${{ secrets.FRONTEND_TEMPLATE_ID }}
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Run tests using docker-compose
-      run: docker-compose run --rm test
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Run integration tests
+        run: |
+          echo "Running pytest via Docker Compose..."
+          docker compose run --rm test
+          TEST_EXIT_CODE=$?
+
+          echo "--- Logs from test container ---"
+          docker compose logs test || true
+
+          echo "Cleaning up containers..."
+          docker compose down || true
+
+          exit $TEST_EXIT_CODE
