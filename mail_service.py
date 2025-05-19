@@ -364,7 +364,7 @@ if __name__ == "__main__":
   <opener>Beste Jan,</opener>
   <body>Uw factuur van mei vindt u als bijlage.</body>
   <footer>Met vriendelijke groet, Finance Dept.</footer>
-  <attachmenturl></attachmenturl>
+  <attachmenturl>http://integrationproject-2425s2-001.westeurope.cloudapp.azure.com:30081/invoice/pdf/89db4542eca7be0ba9e961c5a7ddbbada12e48944e752e0abd6878dc2f2af13f7a95a3a0b5a068a3de8f342b9038d544968011f9d090883eafb5dbef53d9fb58bba9e8470f494871a249992d88228c98a3f0827fa27bfbdf4536eda8884a46d9bccdc6fc11ca7f5a5d1834d337b85ff316fb8b1a7b</attachmenturl>
 </emailMessage>
 '''
 
