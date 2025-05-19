@@ -8,8 +8,9 @@ from lxml import etree
 from io import StringIO, BytesIO
 import qrcode
 import base64
+import requests
 from sendgrid.helpers.mail import Attachment, FileContent, FileName, FileType, Disposition, ContentId
-
+import tempfile
 
 _logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
         <xs:element name="opener" type="xs:string"/>
         <xs:element name="body" type="xs:string"/>
         <xs:element name="footer" type="xs:string"/>
+        <xs:element name="attachmenturl" type="xs:string" minOccurs="0"/>
       </xs:sequence>
       <!-- Nieuw attribuut: naam van de service -->
       <xs:attribute name="service" type="xs:string" use="required"/>
@@ -109,6 +111,10 @@ def xml_to_dict(xml_doc):
                 'footer': root.findtext('footer'),
             }
         }
+        attachment_url = root.findtext("attachmenturl")
+        if attachment_url:
+            data["attachment_url"] = attachment_url
+
         log_message(
           f"XML converted successfully. Service: {service}, "
           f"Recipient: {data['to']}, Subject: {data['subject']}, "
@@ -120,6 +126,19 @@ def xml_to_dict(xml_doc):
         log_message(f"Error converting XML to dict: {str(e)}")
         raise
 
+def download_file(url, save_path):
+    """Downloads a file from the given URL and saves it to the specified path."""
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        log_message(f"File downloaded successfully from {url} to {save_path}")
+        return save_path
+    except Exception as e:
+        log_message(f"Error downloading file from {url}: {str(e)}")
+        raise
 
 def send_email(data):
     log_message(f"Sending email for service '{data['service']}' "
@@ -153,6 +172,43 @@ def send_email(data):
             )
             message.add_attachment(attachment)
 
+        # Handle optional attachment from URL only for "facturatie" service
+        if data['service'] == 'facturatie':
+            attachment_url = data.get('attachment_url')
+            temp_file_path = None
+            if attachment_url:
+                try:
+                    # Download the file to a temporary location
+                    temp_dir = tempfile.gettempdir()
+                    temp_file_path = os.path.join(temp_dir, "attachment.pdf")
+                    download_file(attachment_url, temp_file_path)
+
+                    # Read and encode the file for SendGrid
+                    with open(temp_file_path, 'rb') as f:
+                        file_data = f.read()
+                        encoded_file = base64.b64encode(file_data).decode()
+
+                    # Attach the file to the email
+                    attachment = Attachment(
+                        FileContent(encoded_file),
+                        FileName(os.path.basename(temp_file_path)),
+                        FileType('application/pdf'),
+                        Disposition('attachment')
+                    )
+                    message.add_attachment(attachment)
+                except Exception as e:
+                    log_message(f"Failed to download or attach file from {attachment_url}: {e}")
+                    raise
+                finally:
+                    # Delete the temporary file after sending
+                    if temp_file_path and os.path.exists(temp_file_path):
+                        try:
+                            os.remove(temp_file_path)
+                            log_message(f"Temporary file {temp_file_path} deleted after sending.")
+                        except Exception as e:
+                            log_message(f"Failed to delete temporary file {temp_file_path}: {e}")
+
+        # Send the email using SendGrid
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
         log_message(f"Email sent successfully. Status code: {response.status_code}")
@@ -301,14 +357,15 @@ if __name__ == "__main__":
 '''
 <?xml version="1.0" encoding="UTF-8"?>
 <emailMessage service="facturatie">
-    <to>milanvt18@gmail.com</to>
-    <from>no.reply.expomail@gmail.com</from>
-    <subject>Invoice E-XPO</subject>
-    <title>Invoice for Your Recent Purchase</title>
-    <opener>Dear Customer,</opener>
-    <body>Thank you for your business! Here is your invoice (http://integrationproject-2425s2-001.westeurope.cloudapp.azure.com:30081/invoice/pdf/89db4542eca7be0ba9e961c5a7ddbbada12e48944e752e0abd6878dc2f2af13f7a95a3a0b5a068a3de8f342b9038d544968011f9d090883eafb5dbef53d9fb58bba9e8470f494871a249992d88228c98a3f0827fa27bfbdf4536eda8884a46d9bccdc6fc11ca7f5a5d1834d337b85ff316fb8b1a7b). Please review the details carefully.</body>
-    <footer>If you have any questions, feel free to contact us at support@E-XPO.com.</footer>
-</emailMessage> 
+  <to>reply.expomail@gmail.com</to>
+  <from>no.reply.expomail@gmail.com</from>
+  <subject>Uw factuur is klaar</subject>
+  <title>Factuur #12345</title>
+  <opener>Beste Jan,</opener>
+  <body>Uw factuur van mei vindt u als bijlage.</body>
+  <footer>Met vriendelijke groet, Finance Dept.</footer>
+  <attachmenturl></attachmenturl>
+</emailMessage>
 '''
 
 '''

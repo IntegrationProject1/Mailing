@@ -5,3 +5,4 @@ qrcode
 pillow
 pytest
 pytest-mock
+requests
