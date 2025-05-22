@@ -68,7 +68,7 @@ def send_log_to_monitoring(service_name, status, message):
         channel = connection.channel()
 
         # Declare exchange en stuur het bericht
-        channel.exchange_declare(exchange='log_monitoring', exchange_type='topic', durable=True)
+        channel.exchange_declare(exchange='log_monitoring', exchange_type='direct', durable=True)
         channel.basic_publish(
             exchange='log_monitoring',
             routing_key='controlroom.log.event',
