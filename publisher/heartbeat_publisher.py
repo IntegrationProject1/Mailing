@@ -5,7 +5,7 @@ from lxml import etree
 
 # Generate heartbeat XML from service name
 def generate_heartbeat_xml(service_name): 
-    return f"<Heartbeat><ServiceName>   {service_name}   </ServiceName></Heartbeat>"
+    return f"<Heartbeat><ServiceName>{service_name}</ServiceName></Heartbeat>"
 
     
 # Validate heartbeat XML against XSD
