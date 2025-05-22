@@ -2,6 +2,8 @@ import os
 import time
 import pika
 from lxml import etree
+import xml.etree.ElementTree as ET
+
 
 # Generate heartbeat XML from service name
 def generate_heartbeat_xml(service_name):
@@ -71,7 +73,12 @@ def send_heartbeat_periodically(service_name, queue_name="controlroom.heartbeat.
 
     connection.close()
 
+
+
+
 # Main function to run the heartbeat publisher
 if __name__ == "__main__":
     service_name = os.getenv("SERVICE_NAME", "MailingService")
     send_heartbeat_periodically(service_name)
+
+

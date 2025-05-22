@@ -9,6 +9,8 @@ from io import StringIO, BytesIO
 import qrcode
 import base64
 from sendgrid.helpers.mail import Attachment, FileContent, FileName, FileType, Disposition, ContentId
+import xml.etree.ElementTree as ET
+
 
 
 _logger = logging.getLogger(__name__)
@@ -50,10 +52,38 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
 
 </xs:schema>
 '''
+def send_log_to_monitoring(service_name, status, message):
+    try:
+        # XML-structuur bouwen
+        log = ET.Element('Log')
+        ET.SubElement(log, 'ServiceName').text = service_name
+        ET.SubElement(log, 'Status').text = status
+        ET.SubElement(log, 'Message').text = message
+        xml_data = ET.tostring(log, encoding='utf-8', method='xml')
 
-def log_message(message):
+        # Verbinding met RabbitMQ
+        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+        parameters = pika.ConnectionParameters(host=RABBITMQ_HOST, port=RABBITMQ_PORT, credentials=credentials)
+        connection = pika.BlockingConnection(parameters)
+        channel = connection.channel()
+
+        # Declare exchange en stuur het bericht
+        channel.exchange_declare(exchange='log_monitoring', exchange_type='topic', durable=True)
+        channel.basic_publish(
+            exchange='log_monitoring',
+            routing_key='controlroom.log.event',
+            body=xml_data,
+            properties=pika.BasicProperties(content_type='application/xml')
+        )
+
+        connection.close()
+    except Exception as e:
+        print(f"[FOUT BIJ MONITORING LOG] {e}")
+        
+def log_message(message, level='INFO'):
     print(f"[MAILING] {message}")
-    _logger.info(message)
+    _logger.log(getattr(logging, level.upper(), logging.INFO), message)
+    send_log_to_monitoring(service_name='mail_service', status=level.upper(), message=message)
 
 log_message("Starting mail service...")
 
