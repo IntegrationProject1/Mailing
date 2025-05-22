@@ -87,7 +87,7 @@ def xml_to_dict(xml_doc):
     service = root.get('service')
     if not service or service not in SERVICE_TEMPLATES:
         raise ValueError(f"Onbekende of ontbrekende service: {service!r}")
-    template_id = SERVICE_TEMPLATES[service]
+    template_id = SERVICE_TEMPLATES[service.lower()] # if they write it with a capital letter
 
     # Velden die verplicht aanwezig moeten zijn
     required_fields = ['to', 'from', 'subject']
@@ -380,3 +380,5 @@ if __name__ == "__main__":
   <footer>Met vriendelijke groet, Expo.</footer>
 </emailMessage>
 '''
+
+
