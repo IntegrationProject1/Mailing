@@ -26,7 +26,7 @@ SERVICE_TEMPLATES = {
     'controlroom': os.environ['CONTROLROOM_TEMPLATE_ID'],
     'frontend':    os.environ['FRONTEND_TEMPLATE_ID'],
 }
-QUEUE_NAME = 'mail_queue'
+QUEUE_NAME = 'mail_queue_test'
 
 
 # XSD schema definiëren

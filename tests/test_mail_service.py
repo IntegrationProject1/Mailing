@@ -16,7 +16,7 @@ VALID_XML = '''<?xml version="1.0" encoding="UTF-8"?>
   <attachmenturl>http://example.com/invoice.pdf</attachmenturl>
 </emailMessage>'''
 
-INVALID_XML = '''<emailMessage><to></to></emailMessage>'''  # Onvolledig
+INVALID_XML = '''<emailMessage><to></to></emailMessage>'''  # ongeldig XML bericht
 
 # geldig XML bericht
 @patch.dict("mail_service.SERVICE_TEMPLATES", {"facturatie": "dummy"})
@@ -46,6 +46,8 @@ def test_xml_to_dict_valid():
 @patch("mail_service.SendGridAPIClient")
 @patch.dict("mail_service.SERVICE_TEMPLATES", {"facturatie": "dummy"})
 @patch("mail_service.download_file")
+
+
 def test_send_email_success(mock_download_file, mock_sendgrid_client, mock_open_file):
     ...
 
@@ -104,6 +106,8 @@ def test_callback_json_valid(mock_send_email):
 
 @patch("mail_service.send_email")
 @patch.dict("mail_service.SERVICE_TEMPLATES", {"facturatie": "dummy"})
+
+
 def test_callback_xml_valid(mock_send_email):
     mock_ch = MagicMock()
     mock_method = MagicMock(delivery_tag=1)
