@@ -14,8 +14,11 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 
-
 _logger = logging.getLogger(__name__)
+
+def log_message(message):
+    print(f"[MAILING] {message}")     
+    _logger.info(message)             
 
 # Configuration settings
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
@@ -29,7 +32,7 @@ SERVICE_TEMPLATES = {
     'controlroom': os.environ['CONTROLROOM_TEMPLATE_ID'],
     'frontend':    os.environ['FRONTEND_TEMPLATE_ID'],
 }
-QUEUE_NAME = 'mail_queue_test'
+QUEUE_NAME = 'mail_queue'
 
 
 # XSD schema definiëren
@@ -46,6 +49,7 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
         <xs:element name="opener" type="xs:string"/>
         <xs:element name="body" type="xs:string"/>
         <xs:element name="footer" type="xs:string"/>
+        <xs:element name="qrcode" type="xs:string" minOccurs="0"/>
         <xs:element name="attachmenturl" type="xs:string" minOccurs="0"/>
       </xs:sequence>
       <!-- Nieuw attribuut: naam van de service -->
@@ -185,7 +189,7 @@ def send_email(data):
 
         # Only generate QR code if the service is 'qrcode'
         if data['service'] == 'qrcode':
-            qr_content = data['dynamic_template_data']['body']
+            qr_content = data['dynamic_template_data']['qrcode']
 
             # Generate QR code image in memory
             qr = qrcode.make(qr_content)
