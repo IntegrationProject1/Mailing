@@ -89,7 +89,7 @@ def send_log_to_monitoring(service_name, status, message):
 def log_message(message, level='INFO'):
     print(f"[MAILING] {message}")
     _logger.log(getattr(logging, level.upper(), logging.INFO), message)
-    send_log_to_monitoring(service_name='MailingService', status=level.upper(), message=message)
+    send_log_to_monitoring(service_name='Mailing', status=level.upper(), message=message)
 
 log_message("Starting mail service...")
 

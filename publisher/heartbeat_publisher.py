@@ -75,7 +75,7 @@ def send_heartbeat_periodically(service_name, queue_name="controlroom.heartbeat.
 
 # Main function to run the heartbeat publisher
 if __name__ == "__main__":
-    service_name = os.getenv("SERVICE_NAME", "MailingService")
+    service_name = os.getenv("SERVICE_NAME", "Mailing")
     send_heartbeat_periodically(service_name)
 
 
