@@ -11,8 +11,7 @@ import base64
 import requests
 from sendgrid.helpers.mail import Attachment, FileContent, FileName, FileType, Disposition, ContentId
 import tempfile
-import xml.etree.ElementTree as ET
-
+import time
 
 _logger = logging.getLogger(__name__)
 
@@ -34,7 +33,6 @@ SERVICE_TEMPLATES = {
 }
 QUEUE_NAME = 'mail_queue'
 
-
 # XSD schema definiëren
 XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -49,7 +47,7 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
         <xs:element name="opener" type="xs:string"/>
         <xs:element name="body" type="xs:string"/>
         <xs:element name="footer" type="xs:string"/>
-        <xs:element name="qrcode" type="xs:string" minOccurs="0"/>
+        <xs:element name="barcode" type="xs:string" minOccurs="0"/>
         <xs:element name="attachmenturl" type="xs:string" minOccurs="0"/>
       </xs:sequence>
       <!-- Nieuw attribuut: naam van de service -->
@@ -59,6 +57,7 @@ XSD_SCHEMA = '''<?xml version="1.0" encoding="UTF-8"?>
 
 </xs:schema>
 '''
+
 def send_log_to_monitoring(service_name, status, message):
     try:
         # XML-structuur bouwen
@@ -144,6 +143,7 @@ def xml_to_dict(xml_doc):
                 'opener': root.findtext('opener'),
                 'body':   root.findtext('body'),
                 'footer': root.findtext('footer'),
+                'barcode': root.findtext('barcode'),
             }
         }
         attachment_url = root.findtext("attachmenturl")
@@ -189,7 +189,7 @@ def send_email(data):
 
         # Only generate QR code if the service is 'qrcode'
         if data['service'] == 'qrcode':
-            qr_content = data['dynamic_template_data']['qrcode']
+            qr_content = data['dynamic_template_data']['barcode']
 
             # Generate QR code image in memory
             qr = qrcode.make(qr_content)
@@ -244,6 +244,10 @@ def send_email(data):
                             log_message(f"Failed to delete temporary file {temp_file_path}: {e}")
 
         # Send the email using SendGrid
+        if not SENDGRID_API_KEY:
+            log_message("Sendgrid API key ontbreekt, afsluiten...", level='ERROR')
+            exit(1)
+            
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
         log_message(f"Email sent successfully. Status code: {response.status_code}")
@@ -357,8 +361,20 @@ class MailService:
             self.channel.basic_consume(queue=QUEUE_NAME, on_message_callback=callback)
             log_message(f"Starting to consume messages from queue '{QUEUE_NAME}'")
             
-            # Start consuming messages - this is a blocking call
-            self.channel.start_consuming()
+            try:
+                self.channel.start_consuming()
+            except KeyboardInterrupt:
+                log_message("Mail service interrupted by user (Ctrl+C).")
+                self.shutdown()
+            except pika.exceptions.AMQPConnectionError as e:
+                log_message(f"Lost connection to RabbitMQ: {str(e)}", level="ERROR")
+                self.shutdown()
+            except Exception as e:
+                log_message(f"Unexpected error in consumer: {str(e)}", level="ERROR")
+                import traceback
+                log_message(traceback.format_exc(), level="ERROR")
+                self.shutdown()
+
             
         except Exception as e:
             log_message(f"Unexpected error: {str(e)}")
