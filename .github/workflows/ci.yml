@@ -2,9 +2,9 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [Development]
+    branches: ['*']
   pull_request:
-    branches: [Development]
+    branches: ['*']
 
 jobs:
   test:
@@ -21,6 +21,7 @@ jobs:
       FACTURATIE_TEMPLATE_ID: ${{ secrets.FACTURATIE_TEMPLATE_ID }}
       CONTROLROOM_TEMPLATE_ID: ${{ secrets.CONTROLROOM_TEMPLATE_ID }}
       FRONTEND_TEMPLATE_ID: ${{ secrets.FRONTEND_TEMPLATE_ID }}
+      SERVICE_NAME: ${{ secrets.SERVICE_NAME }}
 
     steps:
       - name: Checkout code
