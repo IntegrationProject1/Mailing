@@ -50,25 +50,27 @@ def send_heartbeat_periodically(service_name, queue_name="controlroom.heartbeat.
     channel.exchange_declare(exchange=exchange_name, exchange_type="direct", durable=True)
     channel.queue_declare(queue=queue_name, durable=True)
     channel.queue_bind(exchange=exchange_name, queue=queue_name, routing_key=queue_name)
+    try:
+        while True:
+            heartbeat_xml = generate_heartbeat_xml(service_name)
+            valid, error = validate_heartbeat_xml(heartbeat_xml)
 
-    while True:
-        heartbeat_xml = generate_heartbeat_xml(service_name)
-        valid, error = validate_heartbeat_xml(heartbeat_xml)
+            if not valid:
+                print(f"Invalid XML: {error}")
+            else:
+                channel.basic_publish(
+                    exchange=exchange_name,
+                    routing_key=queue_name,
+                    body=heartbeat_xml,
+                    properties=pika.BasicProperties(delivery_mode=2)
+                )
 
-        if not valid:
-            print(f"Invalid XML: {error}")
-        else:
-            channel.basic_publish(
-                exchange=exchange_name,
-                routing_key=queue_name,
-                body=heartbeat_xml,
-                properties=pika.BasicProperties(delivery_mode=2)
-            )
-            print(f"Heartbeat sent: {heartbeat_xml}")
+            time.sleep(interval)
 
-        time.sleep(interval)
-
-    connection.close()
+    except KeyboardInterrupt:
+        print("Interrupted by user. Closing connection.")
+    finally:
+        connection.close()  
 
 
 
